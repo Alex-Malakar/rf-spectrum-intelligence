@@ -107,9 +107,12 @@ Real-time classification on captured IQ frames at ~20 fps with adaptive gain con
 - **Bandwidth:** Up to 3.2 MHz instantaneous (2.4 MHz stable)
 - **Host:** Windows 11 + WSL2 Ubuntu 24
 - **GPU:** CUDA (PyTorch 2.x)
-- **Antenna:** RTL-SDR Blog multipurpose dipole kit, quarter-wave tuned per class
+- **Antenna:** RTL-SDR Blog multipurpose dipole kit — telescopic elements 
+  adjusted to quarter-wave length per signal class
 
-### Antenna quarter-wave lengths
+### Antenna setup
+
+Single telescopic dipole, element length adjusted per capture session:
 
 ```
 FM broadcast:  75.5 cm   (99.3 MHz)
@@ -119,6 +122,9 @@ ADS-B:         68.8 mm   (1090 MHz) — vertical polarization
 ```
 
 Formula: `length_cm = 7500 / freq_MHz`
+
+Measure from top of screw collar. ADS-B requires a metal ground plane 
+(cookie sheet or similar) under the dongle for adequate hit rate.
 
 ---
 
