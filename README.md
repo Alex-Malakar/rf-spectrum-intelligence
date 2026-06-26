@@ -1,4 +1,4 @@
-# NN_RF — RF Spectrum Intelligence System
+RF Spectrum Intelligence System
 
 Real-time RF signal classifier with adaptive gain control using a 1D CNN, RTL-SDR V3, and SoapySDR. Classifies live IQ captures into 5 signal classes across a 70–1500 MHz sweep. Designed as a resume project targeting defense/telecom RF engineering roles.
 
