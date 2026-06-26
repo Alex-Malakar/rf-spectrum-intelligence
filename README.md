@@ -72,6 +72,19 @@ fm_broadcast       1.00      1.00      1.00      2035
 
 ---
 
+## Live Inference
+
+Real-time classification on captured IQ frames at ~20 fps with adaptive gain control.
+
+![FM Broadcast](results/inf_fmbroadcast.png)
+*FM broadcast at 99.3 MHz — classifier locks to fm_broadcast at 100% confidence*
+
+![ADS-B](results/inf_adsb.png)
+*ADS-B at 1090 MHz — burst detection with PTM scalar discriminating bursts from noise*
+
+![Unknown](results/inf_unk.png)
+*Unknown band at 462 MHz — model correctly identifies unrecognized signal activity*
+
 ## Feature Engineering Progression
 
 | Iteration | Change | Val Accuracy |
@@ -89,10 +102,12 @@ fm_broadcast       1.00      1.00      1.00      2035
 
 ## Hardware
 
-- **SDR:** RTL-SDR V3 (R820T2 tuner)
+- **SDR:** RTL-SDR Blog V3 (R860 tuner, RTL2832U ADC, 1PPM TCXO)
+- **Tuning range:** 500 kHz – 1.766 GHz (HF via direct sampling below 24 MHz)
+- **Bandwidth:** Up to 3.2 MHz instantaneous (2.4 MHz stable)
 - **Host:** Windows 11 + WSL2 Ubuntu 24
 - **GPU:** CUDA (PyTorch 2.x)
-- **Antenna:** Stock telescopic, quarter-wave tuned per class
+- **Antenna:** RTL-SDR Blog multipurpose dipole kit, quarter-wave tuned per class
 
 ### Antenna quarter-wave lengths
 
@@ -254,7 +269,6 @@ Gain steps: `[14.4, 25.4, 36.4, 48.0, 49.6]` dB
 **Frequency gate at inference** — physics constrains which classes are possible at each frequency. FM cannot appear at 1090 MHz. Gate zeros impossible classes before softmax normalization, improving confidence on correct predictions.
 
 ---
-
 ## Stack
 
-Python · PyTorch · SoapySDR · NumPy · SciPy · HDF5 · RTL-SDR V3
+Python · PyTorch · SoapySDR · NumPy · SciPy · HDF5 · RTL-SDR Blog V3 (R860)
