@@ -1,193 +1,260 @@
-# RF Signal Classifier with Adaptive Power Control
+# NN_RF — RF Spectrum Intelligence System
 
-**Resume project: Power + AI for RF/Electrical Engineering**
+Real-time RF signal classifier with adaptive gain control using a 1D CNN, RTL-SDR V3, and SoapySDR. Classifies live IQ captures into 5 signal classes across a 70–1500 MHz sweep. Designed as a resume project targeting defense/telecom RF engineering roles.
 
-A real-time RF signal classifier running on a HackRF One SDR, with a
-closed-loop adaptive gain controller driven by CNN inference confidence.
-Targets defense/telecom RF engineering roles.
+**97.4% validation accuracy** across 5 signal classes, 50,000 real captured IQ frames, CUDA inference at ~20 fps.
 
 ---
 
-## System architecture
+## Demo
 
-```
-HackRF One
-    │ IQ samples (2 MSPS, complex64)
-    ▼
-Preprocessing
-    │ reshape → (2, 1024) float32 tensor
-    ▼
-1D-CNN Classifier (PyTorch)
-    │ softmax confidence score
-    ▼
-Adaptive Gain Controller
-    │ low confidence → increase gain
-    │ high confidence → decrease gain
-    ▼
-SoapySDR gain API → HackRF LNA/VGA gain registers
-```
+![Frequency Sweep](results/freq_sweep.png)
 
-## Signal classes
-
-| Class | Frequency | Modulation | Notes |
-|-------|-----------|------------|-------|
-| FM broadcast | 88–108 MHz | WBFM | Wideband stereo |
-| ADS-B | 1090 MHz | OOK/PPM | Aircraft transponders |
-| NOAA weather | 162.4–162.55 MHz | NFM | Continuous |
-| Noise floor | 433 MHz (quiet) | — | Baseline class |
-
-## Project phases
-
-| Phase | Description | Duration |
-|-------|-------------|----------|
-| 1 | IQ data capture & dataset construction | Weeks 1–3 |
-| 2 | CNN classifier training & evaluation | Weeks 4–7 |
-| 3 | Adaptive gain control loop | Weeks 8–11 |
-| 4 | Integration, demo, resume packaging | Weeks 12–14 |
+*Top: Mean PSD (dB) across 70–1500 MHz with class predictions overlaid. Bottom: Softmax class probabilities across sweep. Gray = noise floor, orange = unknown signal activity, blue = FM broadcast.*
 
 ---
 
-## Phase 1 — Getting started
+## Signal Classes
 
-### Hardware requirements
-- HackRF One (1 MHz–6 GHz, 2 MSPS minimum)
-- Antenna appropriate for each signal class:
-  - FM/NOAA: simple monopole or dipole (~75 cm)
-  - ADS-B: vertical antenna at 1090 MHz
-
-### Software requirements
-
-**System packages (Ubuntu/Debian):**
-```bash
-sudo apt update
-sudo apt install python3-soapysdr soapysdr-module-hackrf hackrf
-```
-
-**Python packages:**
-```bash
-pip install numpy scipy h5py tqdm matplotlib
-```
-
-**Verify HackRF is detected:**
-```bash
-hackrf_info
-# Should print: Found HackRF One...
-```
-
-### Capture workflow
-
-**Step 1 — Edit signal frequencies for your area:**
-```
-config/signals.py → SIGNAL_CLASSES[0]["center_freq_hz"]
-```
-Find a strong local FM station with:
-```bash
-# Scan FM band first — tune around 88–108 MHz in SDR++ or SDR#
-# Pick the strongest station (RSSI > -60 dBm)
-```
-
-**Step 2 — Capture one class at a time:**
-```bash
-cd data/
-python capture.py --class fm_broadcast
-python capture.py --class noaa_wx
-python capture.py --class ads_b
-python capture.py --class noise_floor
-```
-
-**Or capture all classes in sequence:**
-```bash
-python capture.py
-```
-
-**Step 3 — Verify dataset:**
-```bash
-python capture.py --verify
-python inspect_dataset.py --balance
-python inspect_dataset.py --psd
-```
-
-**Alternative: use RadioML open dataset (no hardware needed for Phase 2):**
-```bash
-python download_radioml.py
-```
+| ID | Class | Frequency | Description |
+|----|-------|-----------|-------------|
+| 0 | fm_broadcast | 88–108 MHz | FM stereo broadcast — 4 OKC stations |
+| 1 | ads_b | 1090 MHz | Aircraft transponder mode-S bursts |
+| 2 | noaa_wx | 162.400 / 162.550 MHz | NOAA weather radio — 2 OKC channels |
+| 3 | noise_floor | 400 MHz | Wideband thermal noise baseline |
+| 4 | unknown | 118 / 144 / 462 / 851 MHz | Active bands outside known classes |
 
 ---
 
-## Dataset format
-
-The HDF5 dataset (`data/rf_dataset.h5`) contains:
-
-| Dataset | Shape | dtype | Description |
-|---------|-------|-------|-------------|
-| `iq_frames` | (N, 2, 1024) | float32 | I and Q channels, 1024 samples/frame |
-| `labels` | (N,) | int32 | Class index (0–3) |
-| `gains` | (N,) | float32 | HackRF gain at capture time (dB) |
-
-Attributes on `iq_frames`:
-- `class_names`: list of class label strings
-- `sample_rate`: 2000000 (2 MSPS)
-- `frame_size`: 1024
-- `gain_levels`: [10, 20, 30, 40]
-
-**Loading in PyTorch (Phase 2 preview):**
-```python
-import h5py, numpy as np, torch
-from torch.utils.data import Dataset
-
-class RFDataset(Dataset):
-    def __init__(self, path):
-        f = h5py.File(path, 'r')
-        self.X = torch.tensor(f['iq_frames'][:], dtype=torch.float32)
-        self.y = torch.tensor(f['labels'][:],    dtype=torch.long)
-        f.close()
-    def __len__(self):  return len(self.y)
-    def __getitem__(self, i): return self.X[i], self.y[i]
-```
-
----
-
-## Target metrics (Phase 1 exit criteria)
-
-- [ ] ≥ 10,000 frames per class (2,500 per gain level × 4 gain levels)
-- [ ] 4 gain levels captured: 10, 20, 30, 40 dB
-- [ ] IQ power balance ratio within 0.8–1.2 (no severe DC offset)
-- [ ] PSD plots show distinct spectral character per class
-- [ ] Constellation diagram shows expected IQ distribution shape
-
----
-
-## Resume bullets (fill in after Phase 2 metrics)
-
-> "Designed and trained a 1D-CNN RF signal classifier in PyTorch achieving
-> __% accuracy across 4 signal classes (FM, ADS-B, NOAA, noise) on
-> captured HackRF One IQ data at SNRs from −5 to +20 dB"
-
-> "Implemented a real-time adaptive gain control loop using CNN inference
-> confidence as feedback signal, reducing average receive gain by __ dB
-> while maintaining >__% classification accuracy"
-
----
-
-## File structure
+## Architecture
 
 ```
-rf_classifier/
-├── README.md
+Input: (batch, 2, 1024)  — log-compressed FFT magnitude + energy envelope
+ConvBlock(2→64,   kernel=7, BN+ReLU+MaxPool) → (batch, 64,  512)
+ConvBlock(64→128, kernel=7, BN+ReLU+MaxPool) → (batch, 128, 256)
+ConvBlock(128→256,kernel=7, BN+ReLU+MaxPool) → (batch, 256, 128)
+GlobalAvgPool                                 → (batch, 256)
+concat(PTM, IFV, SK, CNR, Flatness, ZCR, AmpVar) → (batch, 263)
+Linear(263→128) + ReLU + Dropout(0.3)
+Linear(128→5)   + Softmax
+```
+
+**Injected scalars** — 7 modulation-discriminating features concatenated after GlobalAvgPool:
+
+| Scalar | What it measures | Key separation |
+|--------|-----------------|----------------|
+| PTM | Peak-to-mean amplitude ratio | ADS-B bursts vs noise |
+| IFV | Instantaneous frequency variance | FM/NFM vs noise floor |
+| SK | Spectral kurtosis | Impulsive signals vs Gaussian noise |
+| CNR | Carrier-to-noise ratio estimate | Carrier presence vs noise |
+| Flatness | Wiener spectral entropy | Flat noise vs structured signal |
+| ZCR | Zero crossing rate | FM envelope vs noise |
+| AmpVar | Amplitude envelope variance | Burst vs continuous signals |
+
+---
+
+## Results
+
+```
+Best Val Accuracy: 97.4%
+
+              precision    recall  f1-score   support
+fm_broadcast       1.00      1.00      1.00      2035
+       ads_b       1.00      1.00      1.00      1986
+     noaa_wx       1.00      1.00      1.00      1967
+ noise_floor       0.91      0.97      0.94      1950
+     unknown       0.97      0.90      0.94      2062
+    accuracy                           0.97     10000
+```
+
+![Confusion Matrix](results/confusion_matrix.png)
+![Loss Curves](results/loss_curves.png)
+
+---
+
+## Feature Engineering Progression
+
+| Iteration | Change | Val Accuracy |
+|-----------|--------|--------------|
+| Baseline | Raw IQ, 2-channel | 76.1% |
+| Fix 1 | Magnitude FFT + log1p | 85.5% |
+| Fix 2 | + Energy envelope (2-channel) | 86.5% |
+| Fix 3 | Burst-gated ADS-B recapture | 84.4% |
+| Fix 4 | + PTM scalar injection | 96.3% |
+| Fix 5 | 5-class + multi-station FM + noise augmentation | 97.0% |
+| Fix 6 | + IFV, SK scalars | 97.2% |
+| Fix 7 | + CNR, Flatness, ZCR, AmpVar scalars | 97.4% |
+
+---
+
+## Hardware
+
+- **SDR:** RTL-SDR V3 (R820T2 tuner)
+- **Host:** Windows 11 + WSL2 Ubuntu 24
+- **GPU:** CUDA (PyTorch 2.x)
+- **Antenna:** Stock telescopic, quarter-wave tuned per class
+
+### Antenna quarter-wave lengths
+
+```
+FM broadcast:  75.5 cm   (99.3 MHz)
+NOAA WX:       46.2 cm   (162.4 MHz)
+Noise floor:   18.7 cm   (400 MHz)
+ADS-B:         68.8 mm   (1090 MHz) — vertical polarization
+```
+
+Formula: `length_cm = 7500 / freq_MHz`
+
+---
+
+## Dataset
+
+```
+File:          data/rf_dataset.h5
+Frames:        50,000 total (10,000 per class)
+Shape:         (50000, 2, 1024) float32  — [I, Q] channels
+Sample rate:   2.048 MSPS
+Frame size:    1024 samples (0.5 ms)
+Gain levels:   5 × [14.4, 25.4, 36.4, 48.0, 49.6] dB
+Compression:   gzip level 4, chunked (256, 2, 1024)
+```
+
+**Capture design decisions:**
+- Frequency jitter per gain level forces class-identity learning independent of window position
+- ADS-B burst gate at 13 dB PTM threshold — discards empty frames (83% of raw captures)
+- Multi-station FM capture across 4 OKC transmitters prevents single-station overfitting
+- Noise floor captured at 400 MHz (ISM-free), Faraday-shielded
+- Synthetic noise augmentation during training only (SNR 5–30 dB)
+
+---
+
+## Project Structure
+
+```
+~/NN_RF/
+├── train.py                   # CNN training
+├── inference.py               # Real-time inference + AGC
+├── freq_sweep.py              # 70–1500 MHz sweep visualization
 ├── config/
-│   └── signals.py          ← signal class definitions, frequencies, gain levels
+│   └── signals.py             # Signal class config, frequencies, gain levels
 ├── data/
-│   ├── capture.py          ← Phase 1: HackRF IQ capture script
-│   ├── download_radioml.py ← Phase 1 alt: RadioML open dataset downloader
-│   ├── inspect_dataset.py  ← Phase 1 QA: plots, PSD, constellation diagrams
-│   ├── rf_dataset.h5       ← captured dataset (created by capture.py)
-│   └── plots/              ← QA plots output directory
-├── model/                  ← Phase 2 (coming)
-│   ├── train.py
-│   ├── evaluate.py
-│   └── rf_classifier.pt
-├── control/                ← Phase 3 (coming)
-│   └── adaptive_gain.py
-└── notebooks/
-    └── results.ipynb       ← Phase 4 (coming)
+│   ├── capture.py             # IQ capture script
+│   ├── inspect_dataset.py     # Dataset QA plots
+│   └── rf_dataset.h5          # 50,000-frame dataset
+├── models/
+│   └── rf_cnn_best.pt         # Best checkpoint
+└── results/
+    ├── freq_sweep.png
+    ├── confusion_matrix.png
+    ├── loss_curves.png
+    └── psd_per_class.png
 ```
+
+---
+
+## Setup
+
+### Requirements
+
+```bash
+pip install torch numpy h5py scipy matplotlib scikit-learn tqdm
+# SoapySDR installed separately — see below
+```
+
+### WSL2 + RTL-SDR setup
+
+```powershell
+# PowerShell (Admin) — attach RTL-SDR to WSL
+usbipd attach --wsl --busid 1-5
+```
+
+```bash
+# WSL2 — install SoapySDR RTL-SDR plugin
+sudo apt install soapysdr-module-rtlsdr
+
+# Verify device
+rtl_test -t
+```
+
+### Known SoapySDR fixes (baked into all scripts)
+
+```python
+# Plugin path must be set before import
+os.environ['SOAPY_SDR_PLUGIN_PATH'] = '/usr/lib/x86_64-linux-gnu/SoapySDR/modules0.8'
+import SoapySDR
+
+# Device opened via enumerate, not direct make
+devs = SoapySDR.Device.enumerate({"driver": "rtlsdr"})
+sdr  = SoapySDR.Device(devs[0])
+
+# DC offset fix — tune +100 kHz above target
+sdr.setFrequency(SOAPY_SDR_RX, 0, center_freq_hz + 100e3)
+```
+
+---
+
+## Usage
+
+### Capture dataset
+
+```bash
+python data/capture.py                    # all classes
+python data/capture.py --class ads_b     # single class
+python data/capture.py --verify          # dataset stats
+```
+
+### Train
+
+```bash
+python train.py
+```
+
+### Real-time inference
+
+```bash
+python inference.py --freq 99.3   --gain-idx 1   # FM broadcast
+python inference.py --freq 162.4  --gain-idx 2   # NOAA weather
+python inference.py --freq 1090.0 --gain-idx 3   # ADS-B
+python inference.py --freq 400.0  --gain-idx 0   # noise floor
+python inference.py --freq 462.0  --gain-idx 2   # unknown band
+```
+
+### Frequency sweep
+
+```bash
+python freq_sweep.py                          # 70–1500 MHz, 5 MHz steps
+python freq_sweep.py --step 1.0               # 1 MHz resolution
+python freq_sweep.py --start 70 --stop 300    # partial band
+```
+
+---
+
+## Adaptive Gain Control
+
+Inference runs a closed-loop AGC based on signal conditions:
+
+| Condition | Action | Hold frames |
+|-----------|--------|-------------|
+| Frame energy > 0.85 | Gain DOWN | 5 |
+| Confidence < 60% | Gain UP | 5 |
+| Noise floor > 90% conf | Gain DOWN | 5 |
+
+Gain steps: `[14.4, 25.4, 36.4, 48.0, 49.6]` dB
+
+---
+
+## Key Design Decisions
+
+**No frequency injection** — injecting center frequency as a model feature caused label leakage with multi-station FM. Class disambiguation handled at inference via physics-based frequency gate instead.
+
+**Burst gating for ADS-B** — 83% of raw ADS-B frames contained no burst at 13 dB threshold. Empty frames are spectrally identical to noise floor. Gate raised from 10 dB to 13 dB resolved ADS-B/noise confusion entirely.
+
+**Scalar injection after GlobalAvgPool** — modulation-discriminating features bypass the convolutional feature extractor and inject directly into the classifier head. Allows the model to combine learned spectral features with physics-derived modulation statistics.
+
+**Frequency gate at inference** — physics constrains which classes are possible at each frequency. FM cannot appear at 1090 MHz. Gate zeros impossible classes before softmax normalization, improving confidence on correct predictions.
+
+---
+
+## Stack
+
+Python · PyTorch · SoapySDR · NumPy · SciPy · HDF5 · RTL-SDR V3
