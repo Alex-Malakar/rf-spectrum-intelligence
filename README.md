@@ -167,7 +167,10 @@ Compression:   gzip level 4, chunked (256, 2, 1024)
 └── results/
     ├── freq_sweep.png
     ├── confusion_matrix.png
-    ├── loss_curves.png
+    ├── ares_trainresults.png
+    ├── inf_fmbroadcast.png
+    ├── inf_adsb.png
+    ├── inf_unk.png
     └── psd_per_class.png
 ```
 
